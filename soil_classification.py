@@ -10,150 +10,112 @@ st.set_page_config(page_title="AI Soil Analysis", layout="wide", page_icon="🌱
 # Modern CSS
 st.markdown("""
 <style>
-    .main {
-        background: #f8f9fa;
-    }
-    
-    .hero {
+    .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 3rem 2rem;
-        border-radius: 20px;
-        color: white;
-        text-align: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
-    }
-    
-    .hero h1 {
-        font-size: 3rem;
-        font-weight: 800;
-        margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .hero p {
-        font-size: 1.2rem;
-        margin-top: 0.5rem;
-        opacity: 0.95;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        background: white;
-        padding: 10px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background: #f1f3f5;
-        border-radius: 10px;
-        padding: 12px 24px;
-        font-weight: 600;
-        color: #495057;
-        border: none;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white !important;
-    }
-    
-    .result-card {
-        background: white;
         padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        margin: 1rem 0;
-    }
-    
-    .soil-type {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #667eea;
-        margin: 1rem 0;
+        border-radius: 10px;
         text-align: center;
+        color: white;
+        margin-bottom: 2rem;
     }
-    
-    .chat-box {
-        background: white;
-        border-radius: 15px;
+    .soil-result {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         padding: 1.5rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    .user-msg {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-        padding: 1rem 1.5rem;
-        border-radius: 15px 15px 5px 15px;
-        margin: 0.5rem 0;
-        margin-left: 20%;
-        box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
-    }
-    
-    .bot-msg {
-        background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
-        padding: 1rem 1.5rem;
-        border-radius: 15px 15px 15px 5px;
-        margin: 0.5rem 0;
-        margin-right: 20%;
-        box-shadow: 0 2px 8px rgba(156, 39, 176, 0.2);
-    }
-    
-    .stButton>button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        text-align: center;
         color: white;
-        border: none;
-        padding: 0.7rem 1.5rem;
-        border-radius: 10px;
-        font-weight: 600;
-        width: 100%;
-        transition: all 0.3s;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    }
-    
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
-    
-    .quick-btn {
-        background: white;
-        border: 2px solid #667eea;
-        color: #667eea;
-        padding: 0.5rem 1rem;
-        border-radius: 10px;
-        margin: 0.3rem;
-        font-size: 0.9rem;
-        cursor: pointer;
-        transition: all 0.3s;
-    }
-    
-    .quick-btn:hover {
-        background: #667eea;
-        color: white;
-    }
-    
-    .info-tip {
-        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #4caf50;
+        font-size: 2rem;
+        font-weight: bold;
         margin: 1rem 0;
+    }
+    .chat-user {
+        background: #e3f2fd;
+        padding: 0.8rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+    }
+    .chat-bot {
+        background: #f3e5f5;
+        padding: 0.8rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+    }
+    .welcome-msg {
+        background: #fff3e0;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="hero"><h1>🌱 AI Soil Analyzer</h1><p>Smart Classification • Live Camera • AI Assistant</p></div>', unsafe_allow_html=True)
+st.markdown('''
+<div class="main-header">
+    <h1>🌱 AI Soil Analyzer</h1>
+    <p>Smart Classification • Live Camera • AI Assistant</p>
+</div>
+''', unsafe_allow_html=True)
 
 # Session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Load dataset
+# Enhanced feature extraction
+def extract_advanced_features(img):
+    """Extract multiple features for better classification"""
+    arr = np.array(img.resize((128, 128))).astype(float)
+    
+    # Color features
+    mean_rgb = np.mean(arr, axis=(0, 1))
+    std_rgb = np.std(arr, axis=(0, 1))
+    
+    # Convert to HSV for better color analysis
+    arr_uint = arr.astype(np.uint8)
+    img_hsv = Image.fromarray(arr_uint).convert('HSV')
+    hsv_arr = np.array(img_hsv).astype(float)
+    mean_hsv = np.mean(hsv_arr, axis=(0, 1))
+    std_hsv = np.std(hsv_arr, axis=(0, 1))
+    
+    # Grayscale features
+    gray = np.array(img.convert("L").resize((128, 128))).astype(float)
+    mean_gray = gray.mean()
+    std_gray = gray.std()
+    
+    # Texture features (simple edge detection)
+    edges_h = np.abs(gray[1:, :] - gray[:-1, :]).mean()
+    edges_v = np.abs(gray[:, 1:] - gray[:, :-1]).mean()
+    
+    return {
+        'array': arr,
+        'mean_rgb': mean_rgb,
+        'std_rgb': std_rgb,
+        'mean_hsv': mean_hsv,
+        'std_hsv': std_hsv,
+        'mean_gray': mean_gray,
+        'std_gray': std_gray,
+        'edges': (edges_h + edges_v) / 2
+    }
+
+# Data augmentation during loading
+def augment_image(img):
+    """Create augmented versions of images"""
+    augmented = [img]
+    
+    # Slight rotations
+    augmented.append(img.rotate(5))
+    augmented.append(img.rotate(-5))
+    
+    # Brightness adjustments
+    from PIL import ImageEnhance
+    enhancer = ImageEnhance.Brightness(img)
+    augmented.append(enhancer.enhance(0.9))
+    augmented.append(enhancer.enhance(1.1))
+    
+    return augmented
+
+# Load dataset with augmentation
 @st.cache_data
-def load_dataset_auto():
+def load_dataset_enhanced():
     dataset = []
     possible_paths = ["dataset", "./dataset", "../dataset", "Dataset", "./Dataset"]
     dataset_path = None
@@ -172,7 +134,6 @@ def load_dataset_auto():
     for soil_folder in soil_folders:
         soil_type = soil_folder.lower()
         folder_path = os.path.join(dataset_path, soil_folder)
-        
         image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.jfif', '*.JPG', '*.JPEG', '*.PNG', '*.JFIF']
         image_files = []
         
@@ -182,117 +143,142 @@ def load_dataset_auto():
         for img_path in image_files:
             try:
                 img = Image.open(img_path).convert("RGB")
-                arr = np.array(img.resize((100, 100))).astype(float)
-                dataset.append({
-                    "soil": soil_type,
-                    "array": arr,
-                    "filename": os.path.basename(img_path)
-                })
+                
+                # Add original and augmented versions
+                augmented_imgs = augment_image(img)
+                
+                for aug_img in augmented_imgs:
+                    features = extract_advanced_features(aug_img)
+                    dataset.append({
+                        "soil": soil_type,
+                        "features": features,
+                        "filename": os.path.basename(img_path)
+                    })
             except Exception:
                 continue
     
     return dataset
 
-dataset = load_dataset_auto()
+dataset = load_dataset_enhanced()
 
-# Classification functions
-def calculate_blur(img):
-    gray = np.array(img.convert("L"))
-    laplacian = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
+# Multi-feature similarity
+def calculate_similarity(features1, features2):
+    """Calculate weighted similarity score"""
+    # RGB similarity
+    rgb_diff = np.mean((features1['mean_rgb'] - features2['mean_rgb']) ** 2)
     
-    variance = 0
-    for i in range(1, gray.shape[0]-1):
-        for j in range(1, gray.shape[1]-1):
-            patch = gray[i-1:i+2, j-1:j+2]
-            conv = np.sum(patch * laplacian)
-            variance += conv ** 2
+    # HSV similarity (color is important for soil)
+    hsv_diff = np.mean((features1['mean_hsv'] - features2['mean_hsv']) ** 2)
     
-    variance = variance / (gray.shape[0] * gray.shape[1])
-    return variance
+    # Texture similarity
+    texture_diff = (features1['std_gray'] - features2['std_gray']) ** 2
+    edge_diff = (features1['edges'] - features2['edges']) ** 2
+    
+    # Gray value similarity
+    gray_diff = (features1['mean_gray'] - features2['mean_gray']) ** 2
+    
+    # Weighted combination
+    total_score = (
+        rgb_diff * 0.3 +
+        hsv_diff * 0.3 +
+        texture_diff * 0.15 +
+        edge_diff * 0.15 +
+        gray_diff * 0.1
+    )
+    
+    return total_score
 
-def extract_features(img):
-    arr = np.array(img.resize((100, 100))).astype(float)
-    gray = np.array(img.convert("L").resize((100, 100))).astype(float)
-    return arr, gray
-
-def similarity_score(arr1, arr2):
-    return np.mean((arr1 - arr2) ** 2)
-
-def classify_soil(img):
-    blur_score = calculate_blur(img)
+# Enhanced classification
+def classify_soil_enhanced(img):
+    """Improved classification with multiple features"""
+    img_features = extract_advanced_features(img)
     
-    # Check image quality but don't reject completely
-    quality_penalty = 0
-    quality_note = ""
+    if len(dataset) == 0:
+        return "unknown", 0, "No dataset available", True
     
-    if blur_score < 30:
-        return None, 0, "Image too blurry - unable to analyze", True
-    elif blur_score < 80:
-        quality_penalty = 20
-        quality_note = " (Poor Quality)"
-    elif blur_score > 5000:
-        quality_penalty = 15
-        quality_note = " (Noisy Image)"
+    # Find best matches
+    matches = []
+    for item in dataset:
+        score = calculate_similarity(img_features, item['features'])
+        matches.append({
+            'soil': item['soil'],
+            'score': score
+        })
     
-    img_arr, gray = extract_features(img)
+    # Sort by score
+    matches.sort(key=lambda x: x['score'])
     
-    if len(dataset) > 0:
-        best_match = None
-        best_score = float('inf')
-        
-        for item in dataset:
-            score = similarity_score(img_arr, item["array"])
-            if score < best_score:
-                best_score = score
-                best_match = item
-        
-        if best_score < 500:
-            return best_match["soil"], max(98 - quality_penalty, 60), f"AI Match{quality_note}", False
-        elif best_score < 1500:
-            return best_match["soil"], max(92 - quality_penalty, 55), f"Strong Match{quality_note}", False
-        elif best_score < 3000:
-            return best_match["soil"], max(85 - quality_penalty, 50), f"Good Match{quality_note}", False
+    # Vote from top 15 matches
+    top_matches = matches[:15]
+    vote_count = {}
     
-    mean_gray = gray.mean()
-    std_gray = gray.std()
+    for match in top_matches:
+        soil = match['soil']
+        vote_count[soil] = vote_count.get(soil, 0) + 1
     
-    if std_gray < 20:
-        return "clay", max(72 - quality_penalty, 45), f"AI Prediction{quality_note}", False
-    elif mean_gray > 180:
-        return "sand", max(75 - quality_penalty, 45), f"AI Prediction{quality_note}", False
-    elif mean_gray > 140:
-        return "silt", max(70 - quality_penalty, 45), f"AI Prediction{quality_note}", False
+    # Get winner
+    predicted_soil = max(vote_count, key=vote_count.get)
+    best_score = matches[0]['score']
+    votes = vote_count[predicted_soil]
+    
+    # Calculate confidence based on score and voting
+    if best_score < 50 and votes >= 10:
+        confidence = 95
+        method = "High Confidence Match"
+    elif best_score < 100 and votes >= 8:
+        confidence = 88
+        method = "Strong Match"
+    elif best_score < 200 and votes >= 6:
+        confidence = 78
+        method = "Good Match"
+    elif best_score < 400 and votes >= 5:
+        confidence = 68
+        method = "Probable Match"
+    elif best_score < 800:
+        confidence = 55
+        method = "Low Confidence"
     else:
-        return "gravel", max(68 - quality_penalty, 45), f"AI Prediction{quality_note}", False
+        # Fallback to color-based prediction
+        mean_gray = img_features['mean_gray']
+        std_gray = img_features['std_gray']
+        
+        if std_gray < 20:
+            predicted_soil = "clay"
+            confidence = 48
+        elif mean_gray > 180:
+            predicted_soil = "sand"
+            confidence = 50
+        elif mean_gray > 140:
+            predicted_soil = "silt"
+            confidence = 45
+        else:
+            predicted_soil = "gravel"
+            confidence = 42
+        
+        method = "AI Estimation"
+    
+    return predicted_soil, confidence, method, False
 
-# Simple chatbot
+# Simple chatbot (unchanged)
 def get_ai_response(question):
     q = question.lower()
     
     if 'bearing' in q or 'capacity' in q:
         return "**Bearing Capacity** = Maximum load soil can support\n\n**Formula:** Qult = cNc + γDfNq + 0.5γBNγ\n\n**Safe capacity** = Qult ÷ 3 (with safety factor)"
-    
     elif 'settlement' in q:
         return "**Settlement** = Foundation sinking into soil\n\n**3 Types:**\n• Immediate (instant)\n• Primary (time-based)\n• Secondary (long-term)\n\nClay settles more than sand!"
-    
     elif 'foundation' in q or 'footing' in q:
         return "**Foundation Types:**\n\n**Shallow:** Isolated, Strip, Mat\n**Deep:** Piles, Drilled Shafts\n\nUse shallow if soil is strong near surface!"
-    
     elif 'clay' in q:
         return "**Clay Soil:**\n• Very fine particles\n• High cohesion\n• Low drainage\n• Settles over time\n• Needs deep foundations"
-    
     elif 'sand' in q:
         return "**Sandy Soil:**\n• Coarse particles\n• Good drainage\n• High bearing capacity\n• Immediate settlement\n• Best for shallow foundations"
-    
     elif 'spt' in q:
         return "**SPT Test** = Measures soil strength\n\n**N-values:**\n• N < 10: Loose/Soft\n• N = 10-30: Medium\n• N > 30: Dense/Hard\n\nHigher N = Stronger soil!"
-    
     elif 'shear' in q:
         return "**Shear Strength** = Soil's resistance to sliding\n\n**Formula:** τ = c + σ tan(φ)\n\nClay has high c, Sand has high φ"
-    
     elif 'hello' in q or 'hi' in q:
         return "👋 Hi! I'm your Soil Mechanics AI.\n\nAsk me about:\n• Bearing capacity\n• Foundations\n• Soil types (clay/sand)\n• Settlement\n• SPT tests"
-    
     else:
         return "🤖 **I can help with:**\n\n• Bearing capacity\n• Foundation types\n• Settlement analysis\n• Soil properties\n• SPT testing\n• Shear strength\n\nJust ask a question!"
 
@@ -301,11 +287,11 @@ tab1, tab2, tab3 = st.tabs(["📸 Upload Image", "📹 Live Camera", "🤖 AI As
 
 # TAB 1 - Upload
 with tab1:
-    uploaded_file = st.file_uploader("Drop soil image here", type=["jpg", "png", "jpeg", "jfif"], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Drop soil image here", type=["jpg", "png", "jpeg", "jfif"], 
+                                     label_visibility="collapsed")
     
     if uploaded_file:
         img = Image.open(uploaded_file)
-        
         col1, col2 = st.columns(2, gap="large")
         
         with col1:
@@ -315,24 +301,28 @@ with tab1:
             if len(dataset) == 0:
                 st.error("⚠️ No training data found")
             else:
+                st.info(f"📊 Dataset: {len(dataset)} images loaded")
                 progress = st.progress(0)
                 for i in range(100):
                     time.sleep(0.003)
                     progress.progress(i + 1)
                 
-                soil_type, confidence, method, is_error = classify_soil(img)
+                soil_type, confidence, method, is_error = classify_soil_enhanced(img)
                 
                 if is_error:
                     st.error(f"❌ {method}")
                 else:
-                    st.markdown(f'<div class="result-card"><div class="soil-type">🎯 {soil_type.upper()}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="soil-result">🎯 {soil_type.upper()}</div>', 
+                               unsafe_allow_html=True)
                     st.progress(confidence / 100)
                     st.metric("Confidence", f"{confidence}%")
                     
-                    if confidence >= 90:
+                    if confidence >= 80:
                         st.success(f"✅ {method}")
-                    else:
+                    elif confidence >= 60:
                         st.info(f"ℹ️ {method}")
+                    else:
+                        st.warning(f"⚠️ {method} - Consider retaking image")
     else:
         st.info("👆 Upload a soil image to analyze")
 
@@ -342,7 +332,6 @@ with tab2:
     
     if camera_photo:
         img = Image.open(camera_photo)
-        
         col1, col2 = st.columns(2, gap="large")
         
         with col1:
@@ -352,26 +341,29 @@ with tab2:
             if len(dataset) == 0:
                 st.error("⚠️ No training data")
             else:
+                st.info(f"📊 Dataset: {len(dataset)} images loaded")
                 progress = st.progress(0)
                 for i in range(100):
                     time.sleep(0.002)
                     progress.progress(i + 1)
                 
-                soil_type, confidence, method, is_error = classify_soil(img)
+                soil_type, confidence, method, is_error = classify_soil_enhanced(img)
                 
                 if is_error:
                     st.error(f"❌ {method}")
-                    st.button("🔄 Retake")
                 else:
-                    st.markdown(f'<div class="result-card"><div class="soil-type">🎯 {soil_type.upper()}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="soil-result">🎯 {soil_type.upper()}</div>', 
+                               unsafe_allow_html=True)
                     st.progress(confidence / 100)
                     st.metric("Accuracy", f"{confidence}%")
                     
-                    if confidence >= 90:
+                    if confidence >= 80:
                         st.success(f"✅ {method}")
                         st.balloons()
-                    else:
+                    elif confidence >= 60:
                         st.info(f"ℹ️ {method}")
+                    else:
+                        st.warning(f"⚠️ {method} - Try better lighting")
     else:
         st.info("👆 Click camera button to capture")
 
@@ -379,40 +371,38 @@ with tab2:
 with tab3:
     st.markdown("### 💬 Ask About Soil Mechanics")
     
-    # Chat display
     chat_container = st.container(height=400)
-    
     with chat_container:
         if not st.session_state.chat_history:
-            st.markdown('<div class="info-tip">👋 <b>Welcome!</b> Ask me about soil mechanics, foundations, or soil types.</div>', unsafe_allow_html=True)
+            st.markdown('''<div class="welcome-msg">
+                👋 Welcome! Ask me about soil mechanics, foundations, or soil types.
+            </div>''', unsafe_allow_html=True)
         
         for chat in st.session_state.chat_history:
             if chat['role'] == 'user':
-                st.markdown(f'<div class="user-msg">👤 {chat["msg"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="chat-user">👤 {chat["msg"]}</div>', 
+                           unsafe_allow_html=True)
             else:
-                st.markdown(f'<div class="bot-msg">🤖 {chat["msg"]}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="chat-bot">🤖 {chat["msg"]}</div>', 
+                           unsafe_allow_html=True)
     
-    # Input
     user_input = st.chat_input("Type your question...")
-    
     if user_input:
         st.session_state.chat_history.append({'role': 'user', 'msg': user_input})
         response = get_ai_response(user_input)
         st.session_state.chat_history.append({'role': 'bot', 'msg': response})
         st.rerun()
     
-    # Quick questions
     st.markdown("**⚡ Quick Ask:**")
     col1, col2, col3, col4 = st.columns(4)
-    
     questions = [
         "Bearing capacity?",
         "Foundation types?",
         "Clay vs Sand?",
         "SPT test?"
     ]
-    
     cols = [col1, col2, col3, col4]
+    
     for i, q in enumerate(questions):
         with cols[i]:
             if st.button(q, key=f"q{i}", use_container_width=True):
@@ -423,4 +413,5 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #999;'>🌱 Powered by AI & Computer Vision</p>", unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: #666;">🌱 Powered by AI & Computer Vision</div>', 
+           unsafe_allow_html=True)
