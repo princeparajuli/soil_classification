@@ -60,14 +60,49 @@ st.markdown('''
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
-# Enhanced feature extraction
-def extract_advanced_features(img):
-    """Extract multiple features for better classification"""
+# Detect if image is actually soil or not
+def detect_non_soil(img):
+    """Detect if image contains text, uniform colors, or non-natural patterns"""
+    arr = np.array(img.resize((128, 128))).astype(float)
+    gray = np.array(img.convert("L").resize((128, 128))).astype(float)
+    
+    # Check 1: Too uniform (like white paper/notebook)
+    std_gray = gray.std()
+    if std_gray < 8:  # Very low variation = paper/uniform background
+        return True, "uniform background (paper/notebook?)"
+    
+    # Check 2: Very high contrast (like text on paper)
+    edges_h = np.abs(gray[1:, :] - gray[:-1, :])
+    edges_v = np.abs(gray[:, 1:] - gray[:, :-1])
+    edge_variance = (edges_h.std() + edges_v.std()) / 2
+    
+    if edge_variance > 35:  # Sharp edges = likely text/drawings
+        return True, "text or drawings detected"
+    
+    # Check 3: Unnatural colors (too bright/saturated - like notebook covers)
+    mean_rgb = np.mean(arr, axis=(0, 1))
+    if np.all(mean_rgb > 200):  # Too white
+        return True, "not a soil image"
+    
+    # Check 4: RGB channels too similar (grayscale document)
+    rgb_std = np.std(mean_rgb)
+    if rgb_std < 3 and std_gray > 20:  # Gray but with patterns = printed material
+        return True, "grayscale document detected"
+    
+    return False, ""
+
+# Enhanced feature extraction with soil-specific features
+def extract_soil_features(img):
+    """Extract features specifically for soil classification"""
     arr = np.array(img.resize((128, 128))).astype(float)
     
     # Color features
     mean_rgb = np.mean(arr, axis=(0, 1))
     std_rgb = np.std(arr, axis=(0, 1))
+    
+    # Brown/earthy tone detection
+    r, g, b = mean_rgb
+    brown_score = (r - b) / (r + g + b + 1)  # Brown has more red than blue
     
     # Convert to HSV for better color analysis
     arr_uint = arr.astype(np.uint8)
@@ -81,9 +116,25 @@ def extract_advanced_features(img):
     mean_gray = gray.mean()
     std_gray = gray.std()
     
-    # Texture features (simple edge detection)
+    # Texture features - CRITICAL for distinguishing soil types
+    # Calculate local standard deviation (roughness)
+    roughness = 0
+    for i in range(0, 128-8, 8):
+        for j in range(0, 128-8, 8):
+            patch = gray[i:i+8, j:j+8]
+            roughness += patch.std()
+    roughness = roughness / ((128//8) * (128//8))
+    
+    # Edge detection for texture
     edges_h = np.abs(gray[1:, :] - gray[:-1, :]).mean()
     edges_v = np.abs(gray[:, 1:] - gray[:, :-1]).mean()
+    edge_intensity = (edges_h + edges_v) / 2
+    
+    # Color variance (important for particle detection)
+    color_variance = np.mean([std_rgb[0], std_rgb[1], std_rgb[2]])
+    
+    # Saturation (clay is less saturated, sand/gravel more)
+    saturation = mean_hsv[1]
     
     return {
         'array': arr,
@@ -93,21 +144,30 @@ def extract_advanced_features(img):
         'std_hsv': std_hsv,
         'mean_gray': mean_gray,
         'std_gray': std_gray,
-        'edges': (edges_h + edges_v) / 2
+        'roughness': roughness,
+        'edge_intensity': edge_intensity,
+        'color_variance': color_variance,
+        'saturation': saturation,
+        'brown_score': brown_score
     }
 
-# Data augmentation during loading
+# Data augmentation
 def augment_image(img):
     """Create augmented versions of images"""
     augmented = [img]
     
-    # Slight rotations
-    augmented.append(img.rotate(5))
-    augmented.append(img.rotate(-5))
+    # Rotations
+    augmented.append(img.rotate(10))
+    augmented.append(img.rotate(-10))
     
     # Brightness adjustments
     from PIL import ImageEnhance
     enhancer = ImageEnhance.Brightness(img)
+    augmented.append(enhancer.enhance(0.85))
+    augmented.append(enhancer.enhance(1.15))
+    
+    # Contrast
+    enhancer = ImageEnhance.Contrast(img)
     augmented.append(enhancer.enhance(0.9))
     augmented.append(enhancer.enhance(1.1))
     
@@ -148,7 +208,7 @@ def load_dataset_enhanced():
                 augmented_imgs = augment_image(img)
                 
                 for aug_img in augmented_imgs:
-                    features = extract_advanced_features(aug_img)
+                    features = extract_soil_features(aug_img)
                     dataset.append({
                         "soil": soil_type,
                         "features": features,
@@ -161,37 +221,50 @@ def load_dataset_enhanced():
 
 dataset = load_dataset_enhanced()
 
-# Multi-feature similarity
-def calculate_similarity(features1, features2):
-    """Calculate weighted similarity score"""
-    # RGB similarity
-    rgb_diff = np.mean((features1['mean_rgb'] - features2['mean_rgb']) ** 2)
+# Soil-specific similarity with better weights
+def calculate_soil_similarity(features1, features2):
+    """Calculate similarity with emphasis on texture and color"""
     
-    # HSV similarity (color is important for soil)
+    # Texture is KEY for distinguishing soil types
+    roughness_diff = (features1['roughness'] - features2['roughness']) ** 2
+    edge_diff = (features1['edge_intensity'] - features2['edge_intensity']) ** 2
+    
+    # Color features
+    rgb_diff = np.mean((features1['mean_rgb'] - features2['mean_rgb']) ** 2)
     hsv_diff = np.mean((features1['mean_hsv'] - features2['mean_hsv']) ** 2)
     
-    # Texture similarity
-    texture_diff = (features1['std_gray'] - features2['std_gray']) ** 2
-    edge_diff = (features1['edges'] - features2['edges']) ** 2
-    
-    # Gray value similarity
+    # Grayscale (brightness matters)
     gray_diff = (features1['mean_gray'] - features2['mean_gray']) ** 2
     
-    # Weighted combination
+    # Color variance (particle size indicator)
+    variance_diff = (features1['color_variance'] - features2['color_variance']) ** 2
+    
+    # Saturation
+    sat_diff = (features1['saturation'] - features2['saturation']) ** 2
+    
+    # Weighted combination - TEXTURE IS MOST IMPORTANT
     total_score = (
-        rgb_diff * 0.3 +
-        hsv_diff * 0.3 +
-        texture_diff * 0.15 +
-        edge_diff * 0.15 +
-        gray_diff * 0.1
+        roughness_diff * 0.25 +      # Texture roughness
+        edge_diff * 0.20 +            # Edge intensity
+        variance_diff * 0.20 +        # Color variance
+        hsv_diff * 0.15 +             # HSV color
+        rgb_diff * 0.10 +             # RGB color
+        gray_diff * 0.05 +            # Brightness
+        sat_diff * 0.05               # Saturation
     )
     
     return total_score
 
-# Enhanced classification
+# Enhanced classification with soil-specific rules
 def classify_soil_enhanced(img):
-    """Improved classification with multiple features"""
-    img_features = extract_advanced_features(img)
+    """Improved classification with better soil type distinction"""
+    
+    # First check if it's actually soil
+    is_non_soil, reason = detect_non_soil(img)
+    if is_non_soil:
+        return "invalid", 0, f"Not a soil image - {reason}", True
+    
+    img_features = extract_soil_features(img)
     
     if len(dataset) == 0:
         return "unknown", 0, "No dataset available", True
@@ -199,7 +272,7 @@ def classify_soil_enhanced(img):
     # Find best matches
     matches = []
     for item in dataset:
-        score = calculate_similarity(img_features, item['features'])
+        score = calculate_soil_similarity(img_features, item['features'])
         matches.append({
             'soil': item['soil'],
             'score': score
@@ -208,58 +281,76 @@ def classify_soil_enhanced(img):
     # Sort by score
     matches.sort(key=lambda x: x['score'])
     
-    # Vote from top 15 matches
-    top_matches = matches[:15]
-    vote_count = {}
+    # Vote from top 20 matches with weighted voting
+    top_matches = matches[:20]
+    vote_score = {}
     
-    for match in top_matches:
+    for i, match in enumerate(top_matches):
         soil = match['soil']
-        vote_count[soil] = vote_count.get(soil, 0) + 1
+        # Closer matches get more weight
+        weight = 20 - i
+        vote_score[soil] = vote_score.get(soil, 0) + weight
     
     # Get winner
-    predicted_soil = max(vote_count, key=vote_count.get)
+    predicted_soil = max(vote_score, key=vote_score.get)
     best_score = matches[0]['score']
-    votes = vote_count[predicted_soil]
+    total_votes = vote_score[predicted_soil]
+    max_possible_votes = sum(range(20, 0, -1))
+    vote_percentage = (total_votes / max_possible_votes) * 100
     
-    # Calculate confidence based on score and voting
-    if best_score < 50 and votes >= 10:
-        confidence = 95
-        method = "High Confidence Match"
-    elif best_score < 100 and votes >= 8:
-        confidence = 88
+    # Additional rule-based refinement for clay/silt/sand
+    mean_gray = img_features['mean_gray']
+    roughness = img_features['roughness']
+    color_var = img_features['color_variance']
+    
+    # Clay: smooth, fine, uniform, darker
+    # Silt: medium texture, medium brightness
+    # Sand: coarse, grainy, lighter, varied
+    # Gravel: very coarse, rocky, high variance
+    
+    # Apply soil-specific rules if confidence is borderline
+    if predicted_soil in ['clay', 'silt', 'sand']:
+        # Clay characteristics
+        if roughness < 15 and color_var < 20 and mean_gray < 120:
+            if predicted_soil != 'clay':
+                # Override if very clay-like
+                if roughness < 12:
+                    predicted_soil = 'clay'
+        
+        # Sand characteristics
+        elif roughness > 20 and color_var > 25 and mean_gray > 140:
+            if predicted_soil != 'sand':
+                if roughness > 25:
+                    predicted_soil = 'sand'
+        
+        # Silt is in between
+        elif 15 <= roughness <= 20 and 120 <= mean_gray <= 140:
+            if predicted_soil not in ['silt']:
+                predicted_soil = 'silt'
+    
+    # Calculate confidence
+    if best_score < 30 and vote_percentage > 60:
+        confidence = 94
+        method = "Excellent Match"
+    elif best_score < 60 and vote_percentage > 50:
+        confidence = 87
         method = "Strong Match"
-    elif best_score < 200 and votes >= 6:
+    elif best_score < 100 and vote_percentage > 40:
         confidence = 78
         method = "Good Match"
-    elif best_score < 400 and votes >= 5:
+    elif best_score < 150 and vote_percentage > 30:
         confidence = 68
         method = "Probable Match"
-    elif best_score < 800:
-        confidence = 55
-        method = "Low Confidence"
+    elif best_score < 250:
+        confidence = 58
+        method = "Moderate Confidence"
     else:
-        # Fallback to color-based prediction
-        mean_gray = img_features['mean_gray']
-        std_gray = img_features['std_gray']
-        
-        if std_gray < 20:
-            predicted_soil = "clay"
-            confidence = 48
-        elif mean_gray > 180:
-            predicted_soil = "sand"
-            confidence = 50
-        elif mean_gray > 140:
-            predicted_soil = "silt"
-            confidence = 45
-        else:
-            predicted_soil = "gravel"
-            confidence = 42
-        
-        method = "AI Estimation"
+        confidence = 45
+        method = "Low Confidence"
     
     return predicted_soil, confidence, method, False
 
-# Simple chatbot (unchanged)
+# Simple chatbot
 def get_ai_response(question):
     q = question.lower()
     
@@ -270,15 +361,19 @@ def get_ai_response(question):
     elif 'foundation' in q or 'footing' in q:
         return "**Foundation Types:**\n\n**Shallow:** Isolated, Strip, Mat\n**Deep:** Piles, Drilled Shafts\n\nUse shallow if soil is strong near surface!"
     elif 'clay' in q:
-        return "**Clay Soil:**\n• Very fine particles\n• High cohesion\n• Low drainage\n• Settles over time\n• Needs deep foundations"
+        return "**Clay Soil:**\n• Very fine particles\n• Smooth texture\n• High cohesion\n• Low drainage\n• Dark color\n• Settles over time"
     elif 'sand' in q:
-        return "**Sandy Soil:**\n• Coarse particles\n• Good drainage\n• High bearing capacity\n• Immediate settlement\n• Best for shallow foundations"
+        return "**Sandy Soil:**\n• Coarse particles\n• Grainy texture\n• Good drainage\n• High bearing capacity\n• Light color\n• Immediate settlement"
+    elif 'silt' in q:
+        return "**Silt Soil:**\n• Medium particles\n• Smooth when wet\n• Medium drainage\n• Medium brown color\n• Between clay and sand"
+    elif 'gravel' in q:
+        return "**Gravel:**\n• Large particles/rocks\n• Very coarse\n• Excellent drainage\n• High bearing capacity\n• Rocky appearance"
     elif 'spt' in q:
         return "**SPT Test** = Measures soil strength\n\n**N-values:**\n• N < 10: Loose/Soft\n• N = 10-30: Medium\n• N > 30: Dense/Hard\n\nHigher N = Stronger soil!"
     elif 'shear' in q:
         return "**Shear Strength** = Soil's resistance to sliding\n\n**Formula:** τ = c + σ tan(φ)\n\nClay has high c, Sand has high φ"
     elif 'hello' in q or 'hi' in q:
-        return "👋 Hi! I'm your Soil Mechanics AI.\n\nAsk me about:\n• Bearing capacity\n• Foundations\n• Soil types (clay/sand)\n• Settlement\n• SPT tests"
+        return "👋 Hi! I'm your Soil Mechanics AI.\n\nAsk me about:\n• Bearing capacity\n• Foundations\n• Soil types (clay/sand/silt)\n• Settlement\n• SPT tests"
     else:
         return "🤖 **I can help with:**\n\n• Bearing capacity\n• Foundation types\n• Settlement analysis\n• Soil properties\n• SPT testing\n• Shear strength\n\nJust ask a question!"
 
@@ -301,7 +396,7 @@ with tab1:
             if len(dataset) == 0:
                 st.error("⚠️ No training data found")
             else:
-                st.info(f"📊 Dataset: {len(dataset)} images loaded")
+                st.info(f"📊 Dataset: {len(dataset)} augmented images")
                 progress = st.progress(0)
                 for i in range(100):
                     time.sleep(0.003)
@@ -311,6 +406,7 @@ with tab1:
                 
                 if is_error:
                     st.error(f"❌ {method}")
+                    st.warning("Please upload a clear soil sample image")
                 else:
                     st.markdown(f'<div class="soil-result">🎯 {soil_type.upper()}</div>', 
                                unsafe_allow_html=True)
@@ -322,7 +418,7 @@ with tab1:
                     elif confidence >= 60:
                         st.info(f"ℹ️ {method}")
                     else:
-                        st.warning(f"⚠️ {method} - Consider retaking image")
+                        st.warning(f"⚠️ {method} - Consider retaking with better lighting")
     else:
         st.info("👆 Upload a soil image to analyze")
 
@@ -341,7 +437,7 @@ with tab2:
             if len(dataset) == 0:
                 st.error("⚠️ No training data")
             else:
-                st.info(f"📊 Dataset: {len(dataset)} images loaded")
+                st.info(f"📊 Dataset: {len(dataset)} augmented images")
                 progress = st.progress(0)
                 for i in range(100):
                     time.sleep(0.002)
@@ -351,6 +447,7 @@ with tab2:
                 
                 if is_error:
                     st.error(f"❌ {method}")
+                    st.warning("Please capture a clear soil sample image")
                 else:
                     st.markdown(f'<div class="soil-result">🎯 {soil_type.upper()}</div>', 
                                unsafe_allow_html=True)
@@ -363,7 +460,7 @@ with tab2:
                     elif confidence >= 60:
                         st.info(f"ℹ️ {method}")
                     else:
-                        st.warning(f"⚠️ {method} - Try better lighting")
+                        st.warning(f"⚠️ {method} - Try better angle/lighting")
     else:
         st.info("👆 Click camera button to capture")
 
@@ -413,5 +510,5 @@ with tab3:
 
 # Footer
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: #666;">🌱 Powered by AI & Computer Vision</div>', 
+st.markdown('<div style="text-align: center; color: #666;">🌱 Powered by AI & Computer Vision | Upload SOIL images only</div>', 
            unsafe_allow_html=True)
