@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Soil Analyzer</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f8;
+            text-align: center;
+            padding: 40px;
+        }
+        .box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 400px;
+            margin: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        img, video {
+            max-width: 100%;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        #cameraSection {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="box">
+    <h2>🌱 AI Soil Analyzer</h2>
+
+    <!-- File Upload -->
+    <input type="file" id="fileInput" accept="image/*"><br>
+    <button onclick="uploadFile()">Analyze File</button>
+
+    <!-- Camera Capture -->
+    <div id="cameraSection">
+        <video id="video" width="400" height="300" autoplay></video><br>
+        <button id="captureBtn">Capture & Analyze</button>
+        <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="output"></div>
+</div>
+
+<script>
+/* ---------------- FILE UPLOAD ---------------- */
+async function uploadFile() {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) {
+        alert("Please select an image");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    document.getElementById("output").innerHTML = "⏳ Processing...";
+
+    const res = await fetch("http://127.0.0.1:8000/predict", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+        document.getElementById("output").innerHTML =
+            `<p style="color:red;">❌ ${data.message}</p>`;
+    } else {
+        document.getElementById("output").innerHTML = `
+            <h3>Soil: ${data.soil.toUpperCase()}</h3>
+            <p>Confidence: ${data.confidence}%</p>
+        `;
+    }
+}
+
+/* ---------------- CAMERA CAPTURE ---------------- */
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const captureBtn = document.getElementById('captureBtn');
+
+// Access camera
+navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => {
+        video.srcObject = stream;
+    })
+    .catch(err => {
+        console.error("Camera access error: ", err);
+        document.getElementById("output").innerHTML = `<p style="color:red;">Camera not accessible</p>`;
+    });
+
+// Capture image & send to API
+captureBtn.addEventListener('click', async () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append('file', blob, 'capture.jpg');
+
+        document.getElementById("output").innerHTML = "⏳ Processing...";
+
+        const res = await fetch("http://127.0.0.1:8000/predict", {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            document.getElementById("output").innerHTML =
+                `<p style="color:red;">❌ ${data.message}</p>`;
+        } else {
+            document.getElementById("output").innerHTML = `
+                <h3>Soil: ${data.soil.toUpperCase()}</h3>
+                <p>Confidence: ${data.confidence}%</p>
+            `;
+        }
+    }, 'image/jpeg', 0.95);
+});
+</script>
+
+</body>
+</html>
